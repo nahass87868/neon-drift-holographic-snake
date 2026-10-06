@@ -18,7 +18,7 @@ const CFG={arena:38,initialLength:8,spacing:.52,baseSpeed:7.2,maxSpeed:16.5,turn
 let scene,renderer,camera;
 let arena,snakeGroup,fruitGroup,particleGroup,trailGroup;
 let snake=[],history=[],particles=[],trails=[],fruit;
-let dir=new THREE.Vector3(1,0,0),wanted=dir.clone();
+let dir,wanted;
 let state="start",score=0,high=Number(localStorage.getItem("neonDriftHighScore")||0);
 let elapsed=0,speed=CFG.baseSpeed,boost=1,boostHeld=false,shake=0;
 let audio=null,last=performance.now();
@@ -27,6 +27,9 @@ const color=(hex,em=hex,intensity=1)=>new THREE.MeshStandardMaterial({color:hex,
 const basic=(hex,opacity=1)=>new THREE.MeshBasicMaterial({color:hex,transparent:opacity<1,opacity,depthWrite:false});
 
 function init(){
+ if(!window.THREE) throw new Error("Three.js failed to load");
+ dir=new THREE.Vector3(1,0,0);
+ wanted=dir.clone();
  scene=new THREE.Scene();
  scene.background=new THREE.Color(0x02050d);
  scene.fog=new THREE.FogExp2(0x020714,.017);
@@ -121,7 +124,11 @@ function bind(){
    else if((e.key==="r"||e.key==="R")&&state==="over")startGame();
  });
  addEventListener("keyup",e=>{if(e.code==="Space")boostHeld=false});
- ui.startBtn.onclick=startGame;ui.resume.onclick=()=>setState("playing");ui.pauseRestart.onclick=startGame;ui.restart.onclick=startGame;ui.pauseBtn.onclick=togglePause;
+ ui.startBtn.addEventListener("click", startGame);
+ ui.resume.addEventListener("click", ()=>setState("playing"));
+ ui.pauseRestart.addEventListener("click", startGame);
+ ui.restart.addEventListener("click", startGame);
+ ui.pauseBtn.addEventListener("click", togglePause);
  canvas.addEventListener("pointerdown",e=>{
    if(state!=="playing"||innerWidth>800)return;
    const dx=e.clientX-innerWidth/2,dy=e.clientY-innerHeight/2;
@@ -209,5 +216,12 @@ function loop(now){
  scene.traverse(o=>{if(o.userData&&o.userData.phase!==undefined&&o.userData.ambient===undefined)o.rotation.y+=dt*.05});
  renderer.render(scene,camera);
 }
-init();
+try {
+ init();
+} catch(err) {
+ console.error("NEON//DRIFT failed to initialize:", err);
+ ui.startBtn.disabled=false;
+ ui.startBtn.textContent="START FAILED — REFRESH";
+ ui.startBtn.style.pointerEvents="auto";
+}
 })();
