@@ -22,6 +22,7 @@ let dir,wanted;
 let state="start",score=0,high=Number(localStorage.getItem("neonDriftHighScore")||0);
 let elapsed=0,speed=CFG.baseSpeed,boost=1,boostHeld=false,shake=0;
 let audio=null,last=performance.now();
+let initialized=false;
 
 const color=(hex,em=hex,intensity=1)=>new THREE.MeshStandardMaterial({color:hex,emissive:em,emissiveIntensity:intensity,metalness:.72,roughness:.22});
 const basic=(hex,opacity=1)=>new THREE.MeshBasicMaterial({color:hex,transparent:opacity<1,opacity,depthWrite:false});
@@ -35,7 +36,12 @@ function init(){
  scene.fog=new THREE.FogExp2(0x020714,.017);
  camera=new THREE.PerspectiveCamera(55,innerWidth/innerHeight,.1,220);
  camera.position.set(0,7,12);
- renderer=new THREE.WebGLRenderer({canvas,antialias:true,powerPreference:"high-performance"});
+ try {
+   renderer=new THREE.WebGLRenderer({canvas,antialias:true,powerPreference:"default",alpha:false});
+ } catch (err) {
+   console.error("WebGL renderer creation failed:", err);
+   throw new Error("WebGL could not be initialized. Your browser or GPU may have WebGL disabled.");
+ }
  renderer.setPixelRatio(Math.min(devicePixelRatio,1.7));
  renderer.setSize(innerWidth,innerHeight);
  renderer.outputColorSpace=THREE.SRGBColorSpace;
@@ -43,6 +49,7 @@ function init(){
  renderer.toneMappingExposure=1.25;
  setupLights(); buildArena(); buildSnake(); buildFruit(); buildParticles(); bind(); updateHUD();
  addEventListener("resize",resize);
+ initialized=true;
  requestAnimationFrame(loop);
 }
 function setupLights(){
@@ -124,11 +131,6 @@ function bind(){
    else if((e.key==="r"||e.key==="R")&&state==="over")startGame();
  });
  addEventListener("keyup",e=>{if(e.code==="Space")boostHeld=false});
- ui.startBtn.addEventListener("click", startGame);
- ui.resume.addEventListener("click", ()=>setState("playing"));
- ui.pauseRestart.addEventListener("click", startGame);
- ui.restart.addEventListener("click", startGame);
- ui.pauseBtn.addEventListener("click", togglePause);
  canvas.addEventListener("pointerdown",e=>{
    if(state!=="playing"||innerWidth>800)return;
    const dx=e.clientX-innerWidth/2,dy=e.clientY-innerHeight/2;
@@ -137,6 +139,10 @@ function bind(){
  });
 }
 function startGame(){
+ if(!initialized){
+   console.warn("Start requested before game initialization completed.");
+   return;
+ }
  score=0;elapsed=0;speed=CFG.baseSpeed;boost=1;shake=0;dir.set(1,0,0);wanted.copy(dir);resetSnake();spawnFruit();setState("playing");beep(220,.06,"sine");
 }
 function togglePause(){if(state==="playing")setState("paused");else if(state==="paused")setState("playing")}
@@ -216,12 +222,16 @@ function loop(now){
  scene.traverse(o=>{if(o.userData&&o.userData.phase!==undefined&&o.userData.ambient===undefined)o.rotation.y+=dt*.05});
  renderer.render(scene,camera);
 }
+// Bind the start/restart controls immediately, even if WebGL initialization fails.
+// This prevents a failed renderer from leaving a dead-looking button.
+if(ui.startBtn)if(ui.resume)if(ui.pauseRestart)if(ui.restart)if(ui.pauseBtn)
 try {
  init();
 } catch(err) {
  console.error("NEON//DRIFT failed to initialize:", err);
- ui.startBtn.disabled=false;
- ui.startBtn.textContent="START FAILED — REFRESH";
- ui.startBtn.style.pointerEvents="auto";
+ const msg=document.createElement("div");
+ msg.id="bootError";
+ msg.innerHTML="<b>3D ENGINE FAILED TO START</b><span>WebGL could not be initialized. Try Chrome/Edge with hardware acceleration enabled.</span>";
+ document.body.appendChild(msg);
 }
 })();
